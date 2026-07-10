@@ -1387,7 +1387,6 @@ document.getElementById('btn-sound').addEventListener('click', e=>{
 const SUPABASE_URL  = 'https://oyqhvdsvfkdosymsczfe.supabase.co';   // e.g. 'https://xxxx.supabase.co'
 const SUPABASE_ANON = 'sb_publishable_ez7alW54xoHhtBjc08efYA_LROKOZ_Z';   // anon public key (safe to expose; RLS + RPC enforced)
 
-
 const Store = (()=>{ /* device-local prefs (lang, my number, stamp times) */
   const hasArtifact = typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
   const mem = {};
