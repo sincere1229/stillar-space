@@ -213,6 +213,15 @@
     font-size:10px;letter-spacing:.35em;color:rgba(233,230,242,.35);
   }
   #tonight:hover #tonight-name{color:var(--gold)}
+  body:not(.lang-en) #watch .lbl,
+  body:not(.lang-en) #tonight .lbl{
+    font-family:'Shippori Mincho',serif;font-style:normal;
+    font-size:10px;letter-spacing:.32em;
+  }
+  body:not(.lang-en) #tonight-name{
+    font-family:'Shippori Mincho',serif;font-size:14px;letter-spacing:.24em;
+  }
+  body:not(.lang-en) #res-no{font-size:10px}
   #btn-resident{
     position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 26px);right:22px;z-index:21;
     background:none;border:none;cursor:pointer;
@@ -468,8 +477,35 @@ const PLANETS = [
 
 /* ---------------- three.js scene ---------------- */
 const canvas = document.getElementById('space');
-const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const IS_MOBILE = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
+const SEG = IS_MOBILE ? 24 : 36;            // sphere detail
+const STAR_N = IS_MOBILE ? [850, 500] : [1400, 900];
+
+let renderer = null;
+try{
+  renderer = new THREE.WebGLRenderer({canvas, antialias:!IS_MOBILE, alpha:true,
+    powerPreference:'default', failIfMajorPerformanceCaveat:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2));
+}catch(e){ renderer = null; }
+if(!renderer || !renderer.getContext()){
+  /* WebGL unavailable — show the quiet 2D sky instead of a broken page */
+  document.body.classList.add('no3d');
+  canvas.style.display = 'none';
+  const fb = document.createElement('div');
+  fb.id = 'fallback-stars';
+  fb.style.cssText = 'position:fixed;inset:0;pointer-events:none;';
+  for(let i=0;i<90;i++){
+    const s = document.createElement('i');
+    s.style.cssText = `position:absolute;left:${Math.random()*100}%;top:${Math.random()*100}%;`+
+      `width:2px;height:2px;border-radius:50%;background:#dfe3ff;`+
+      `opacity:${.2+Math.random()*.7};box-shadow:0 0 ${2+Math.random()*4}px #dfe3ff;`;
+    fb.appendChild(s);
+  }
+  document.body.insertBefore(fb, document.getElementById('vignette'));
+  throw new Error('WebGL unavailable — static sky shown'); // stops 3D init gracefully
+}
+canvas.addEventListener('webglcontextlost', e=>{ e.preventDefault(); }, false);
+canvas.addEventListener('webglcontextrestored', ()=>{ location.reload(); }, false);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
 
@@ -561,8 +597,8 @@ function makeStars(count, spread, size, opacity){
   scene.add(pts);
   return pts;
 }
-const stars1 = makeStars(1400, 220, 0.55, 0.9);
-const stars2 = makeStars(900, 220, 0.32, 0.55);
+const stars1 = makeStars(STAR_N[0], 220, 0.55, 0.9);
+const stars2 = makeStars(STAR_N[1], 220, 0.32, 0.55);
 
 /* --- sun --- */
 const sun = new THREE.Mesh(
@@ -583,7 +619,7 @@ PLANETS.forEach(p=>{
   if(p.id==='jupiter' || p.id==='saturn' || p.id==='venus') tex = bandTexture(p.tint, p.id==='jupiter'?9:6);
   else tex = noiseTexture(p.tint, 120, .5);
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(p.size, 36, 36),
+    new THREE.SphereGeometry(p.size, SEG, SEG),
     new THREE.MeshStandardMaterial({map:tex, roughness:.9, metalness:0,
       emissive:new THREE.Color(p.tint), emissiveIntensity:.14})
   );
@@ -669,51 +705,71 @@ function resize(){
 }
 addEventListener('resize', resize);
 
-/* ---------------- interaction ---------------- */
-const raycaster = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-
+/* ---------------- interaction ----------------
+   Screen-space picking (V1.0 final):
+   project every planet to CSS pixels, choose the nearest to the
+   finger — but only within (apparent radius + finger slack).
+   Immune to hit-sphere overlap, devicePixelRatio, and canvas
+   buffer-vs-display size mismatches, because it uses the same
+   clientX/Y space the finger lives in.                      */
 const _pc = new THREE.Vector3();
-function pick(cx, cy){
-  ndc.x = (cx/innerWidth)*2-1;
-  ndc.y = -(cy/innerHeight)*2+1;
-  raycaster.setFromCamera(ndc, camera);
-  const hits = raycaster.intersectObjects(clickables, false);
-  if(!hits.length) return null;
-  /* overlapping targets (Earth & Moon): choose the one whose
-     center sits closest to the finger on screen */
+function apparentRadiusPx(p, mesh){
+  mesh.getWorldPosition(_pc);
+  const dist = _pc.distanceTo(camera.position);
+  const fovScale = (innerHeight*0.5) / Math.tan(camera.fov*Math.PI/360);
+  return (p.size / Math.max(dist, 0.01)) * fovScale;
+}
+function pick(cx, cy, slackPx){
+  const slack = slackPx !== undefined ? slackPx
+    : (IS_MOBILE ? Math.max(30, Math.min(innerWidth, innerHeight)*0.055) : 8);
   let best = null, bd = Infinity;
-  hits.forEach(h=>{
-    h.object.parent.getWorldPosition(_pc);
+  PLANETS.forEach(p=>{
+    const mesh = planetObjs[p.id].mesh;
+    mesh.getWorldPosition(_pc);
     _pc.project(camera);
-    const d = (_pc.x-ndc.x)**2 + (_pc.y-ndc.y)**2;
-    if(d < bd){ bd = d; best = h.object.userData.planetId; }
+    if(_pc.z > 1) return;                       // behind the camera
+    const sx = ( _pc.x*0.5 + 0.5) * innerWidth; // CSS pixels
+    const sy = (-_pc.y*0.5 + 0.5) * innerHeight;
+    const d = Math.hypot(sx-cx, sy-cy);
+    const reach = apparentRadiusPx(p, mesh) + slack;
+    if(d <= reach && d < bd){ bd = d; best = p.id; }
   });
-  return best;
+  return best; /* far from every planet → null: empty sky stays empty */
 }
 
-let downPos = null;
+/* tap flow: confirm the chosen planet for a breath, then fly */
+let downPos = null, selecting = false;
+const DRIFT = IS_MOBILE ? 18 : 10; /* small finger wobble is not a drag */
 canvas.addEventListener('pointerdown', e=>{
   ensureAudio();
-  downPos = {x:e.clientX, y:e.clientY};
+  downPos = {x:e.clientX, y:e.clientY, t:performance.now()};
 });
+canvas.addEventListener('pointercancel', ()=>{ downPos = null; });
 canvas.addEventListener('pointerup', e=>{
   if(!downPos) return;
   const moved = Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y);
+  const cx = (e.clientX + downPos.x)/2, cy = (e.clientY + downPos.y)/2;
   downPos = null;
-  if(moved > 12 || mode!=='space') return;
-  const id = pick(e.clientX, e.clientY);
-  if(id) flyTo(id);
+  if(moved > DRIFT || mode!=='space' || selecting) return;
+  const id = pick(cx, cy);
+  if(!id) return;
+  /* show the name first — you should always know where you're going */
+  selecting = true;
+  const d = planetObjs[id].def;
+  whisper.querySelector('.jp').textContent = nameMain(d);
+  whisper.querySelector('.en').textContent = '';
+  whisper.classList.add('show');
+  setTimeout(()=>{ selecting = false; flyTo(id); }, 220);
 });
 canvas.addEventListener('pointermove', e=>{
   pointer.x = (e.clientX/innerWidth - .5);
   pointer.y = (e.clientY/innerHeight - .5);
-  if(mode==='space' && e.pointerType==='mouse'){
+  if(mode==='space' && !selecting && e.pointerType==='mouse'){
     const id = pick(e.clientX, e.clientY);
     if(id){
       const d = planetObjs[id].def;
       whisper.querySelector('.jp').textContent = nameMain(d);
-      whisper.querySelector('.en').textContent = nameSub(d);
+      whisper.querySelector('.en').textContent = '';
       whisper.classList.add('show');
       canvas.style.cursor = 'pointer';
     }else{
@@ -739,7 +795,7 @@ function flyTo(id){
   document.body.classList.add('away');
   const d = planetObjs[id].def;
   whisper.querySelector('.jp').textContent = nameMain(d);
-  whisper.querySelector('.en').textContent = nameSub(d);
+  whisper.querySelector('.en').textContent = '';
   whisper.classList.add('show');
   Ambient.play(id); // music begins its journey with you
 }
@@ -1157,6 +1213,7 @@ const Ambient = (()=>{
       if(ctx.state==='suspended') ctx.resume();
       if(!current) this.play('space');
     },
+    resume(){ if(ctx && ctx.state==='suspended') ctx.resume(); },
     play(id){
       if(!ctx) return;
       const prof = PROFILES[id] || PROFILES.space;
@@ -1189,32 +1246,116 @@ document.getElementById('btn-sound').addEventListener('click', e=>{
 /* =========================================================
    QUIET PRESENCE — residents, footprints, tonight, watching
    ========================================================= */
-/* storage wrapper: shared keys are visible to every visitor of this page */
-const Store = {
-  async get(k, shared=false){
-    try{ const r = await window.storage.get(k, shared); return r ? JSON.parse(r.value) : null; }
-    catch(e){ return null; }
-  },
-  async set(k, v, shared=false){
-    try{ await window.storage.set(k, JSON.stringify(v), shared); return true; }
-    catch(e){ return false; }
-  }
-};
+/* ---------------------------------------------------------
+   BACKEND — three tiers, checked in order:
+   1) Supabase  (production: fill SUPABASE_URL / SUPABASE_ANON,
+                 run stillar-supabase.sql first)
+   2) Artifact  (window.storage — Claude.ai preview only)
+   3) Local     (device-only; shared features degrade honestly)
+   --------------------------------------------------------- */
+const SUPABASE_URL  = 'https://oyqhvdsvfkdosymsczfe.supabase.co';   // e.g. 'https://xxxx.supabase.co'
+const SUPABASE_ANON = 'sb_publishable_ez7alW54xoHhtBjc08efYA_LROKOZ_Z';   // anon public key (safe to expose; RLS + RPC enforced)
 
-/* --- ① Now watching (ambient simulation — real presence needs a backend) --- */
+const Store = (()=>{ /* device-local prefs (lang, my number, stamp times) */
+  const hasArtifact = typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+  const mem = {};
+  return {
+    async get(k){
+      if(hasArtifact){ try{ const r = await window.storage.get(k,false); return r?JSON.parse(r.value):null; }catch(e){ return null; } }
+      try{ const v = localStorage.getItem('stillar:'+k); return v?JSON.parse(v):null; }catch(e){ return mem[k]??null; }
+    },
+    async set(k,v){
+      if(hasArtifact){ try{ await window.storage.set(k,JSON.stringify(v),false); return true; }catch(e){ return false; } }
+      try{ localStorage.setItem('stillar:'+k, JSON.stringify(v)); return true; }catch(e){ mem[k]=v; return true; }
+    },
+    hasArtifact
+  };
+})();
+
+const Backend = (()=>{
+  const hasSupa = !!(SUPABASE_URL && SUPABASE_ANON);
+  const mode = hasSupa ? 'supabase' : (Store.hasArtifact ? 'artifact' : 'local');
+  async function rpc(fn, args){
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json',
+                'apikey':SUPABASE_ANON, 'Authorization':'Bearer '+SUPABASE_ANON },
+      body: JSON.stringify(args||{})
+    });
+    if(!res.ok) throw new Error('rpc '+fn+' '+res.status);
+    return res.json();
+  }
+  async function sharedGet(k){ try{ const r=await window.storage.get(k,true); return r?JSON.parse(r.value):null; }catch(e){ return null; } }
+  async function sharedSet(k,v){ try{ await window.storage.set(k,JSON.stringify(v),true); return true; }catch(e){ return false; } }
+  async function deviceId(){
+    let d = await Store.get('device');
+    if(!d){ d = (crypto.randomUUID ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);}));
+      await Store.set('device', d); }
+    return d;
+  }
+  return {
+    mode, deviceId,
+    /* atomic on Supabase (DB sequence); best-effort elsewhere */
+    async registerResident(){
+      const dev = await deviceId();
+      if(mode==='supabase') return await rpc('register_resident', {p_device:dev});
+      if(mode==='artifact'){
+        const reg = (await sharedGet('ph-residents')) || {count:0};
+        reg.count += 1;
+        const ok = await sharedSet('ph-residents', reg);
+        return ok ? reg.count : 1;
+      }
+      return 1; /* local: you are the first resident of your own sky */
+    },
+    async addFootprint(planetId){
+      const dev = await deviceId();
+      if(mode==='supabase') return await rpc('add_footprint', {p_planet:planetId, p_device:dev});
+      if(mode==='artifact'){
+        const fp = (await sharedGet('ph-footprints')) || {};
+        fp[planetId] = (fp[planetId]||0)+1;
+        sharedSet('ph-footprints', fp);
+        return fp[planetId];
+      }
+      const fp = (await Store.get('fp')) || {};
+      fp[planetId] = (fp[planetId]||0)+1;
+      Store.set('fp', fp);
+      return fp[planetId];
+    },
+    async peekFootprints(planetId){ /* read-only count for display */
+      if(mode==='supabase'){ try{ return await rpc('get_footprints', {p_planet:planetId}); }catch(e){ return null; } }
+      if(mode==='artifact'){ const fp=(await sharedGet('ph-footprints'))||{}; return fp[planetId]||0; }
+      const fp = (await Store.get('fp')) || {};
+      return fp[planetId]||0;
+    },
+    async heartbeat(planetId){ /* returns live count, or null when unknown */
+      if(mode!=='supabase') return null;
+      let s = await Store.get('session');
+      if(!s){ s = await deviceId() + '-' + Date.now().toString(36); await Store.set('session', s); }
+      try{ return await rpc('heartbeat', {p_session:s, p_planet:planetId||null}); }
+      catch(e){ return null; }
+    }
+  };
+})();
+
+/* --- ① Now watching — real numbers or honest words, never fake --- */
+const watchState = {live:null};
 (function watching(){
-  const el = document.getElementById('watch-n');
-  const day = Math.floor(Date.now()/86400000);
-  let n = 9000 + ((day*2654435761)>>>0) % 6000;
-  let t0 = Date.now();
-  function tick(){
-    const h = new Date().getHours();
-    const nightBoost = (h>=20 || h<2) ? 1.15 : (h>=2 && h<7 ? 0.8 : 1);
-    const wave = Math.sin((Date.now()-t0)/240000) * 220;
-    n += Math.round((Math.random()-0.48)*30);
-    const shown = Math.max(800, Math.round((n + wave) * nightBoost));
-    el.textContent = shown.toLocaleString('en-US');
-    setTimeout(tick, 3500 + Math.random()*4000);
+  const numEl = document.getElementById('watch-n');
+  const lblEl = document.querySelector('#watch .lbl');
+  async function tick(){
+    const n = await Backend.heartbeat(mode==='landed' ? targetPlanet : null);
+    watchState.live = n;
+    if(typeof n === 'number' && n > 0){
+      lblEl.textContent = I18N[lang].watchLive;
+      numEl.textContent = n.toLocaleString('en-US');
+      numEl.style.display = '';
+    }else{
+      /* no presence backend yet: words instead of invented numbers */
+      lblEl.textContent = I18N[lang].watchSoft;
+      numEl.style.display = 'none';
+    }
+    setTimeout(tick, 60000);
   }
   tick();
 })();
@@ -1230,15 +1371,13 @@ const EVENTS = [
   {p:'mercury', en:'Silent Sunrise',     jp:'静寂の日の出'},
 ];
 const tonightEv = EVENTS[Math.floor(Date.now()/86400000) % EVENTS.length];
-document.getElementById('tonight-name').textContent = tonightEv.en;
-document.getElementById('tonight-jp').textContent = tonightEv.jp;
 document.getElementById('tonight').addEventListener('click', ()=>{
   if(mode!=='space') return;
   ensureAudio();
   flyTo(tonightEv.p);
 });
 
-/* --- ③ Resident — a real, shared number. One per traveler, forever. --- */
+/* --- ③ Resident — one number per traveler, forever --- */
 const btnResident = document.getElementById('btn-resident');
 const ceremony = document.getElementById('ceremony');
 const resNoEl = document.getElementById('res-no');
@@ -1257,11 +1396,11 @@ btnResident.addEventListener('click', async ()=>{
   btnResident.disabled = true;
   let me = await Store.get('ph-me');
   if(!me || !me.no){
-    const reg = (await Store.get('ph-residents', true)) || {count:0};
-    reg.count += 1;
-    const saved = await Store.set('ph-residents', reg, true);
-    me = {no: saved ? reg.count : 1, since: Date.now()};
-    await Store.set('ph-me', me);
+    try{
+      const no = await Backend.registerResident();
+      me = {no, since: Date.now()};
+      await Store.set('ph-me', me);
+    }catch(e){ btnResident.disabled = false; return; }
   }
   ceremony.querySelector('.c-no').textContent = fmtNo(me.no);
   ceremony.classList.add('on');
@@ -1270,14 +1409,22 @@ btnResident.addEventListener('click', async ()=>{
 });
 ceremony.addEventListener('click', ()=> ceremony.classList.remove('on'));
 
-/* --- ④ Footprints — shared marks of everyone who ever landed here --- */
+/* --- ④ Footprints — quiet marks of everyone who landed here --- */
 async function stampFootprints(planetId){
   const paws = document.getElementById('paws');
   paws.innerHTML = '';
-  const fp = (await Store.get('ph-footprints', true)) || {};
-  fp[planetId] = (fp[planetId]||0) + 1;
-  Store.set('ph-footprints', fp, true);
-  const shown = Math.min(fp[planetId], 22);
+  /* rate limit: one paw per planet per device per 30 minutes */
+  const stamps = (await Store.get('stamps')) || {};
+  const now = Date.now();
+  let count;
+  if(!stamps[planetId] || now - stamps[planetId] > 30*60*1000){
+    stamps[planetId] = now;
+    Store.set('stamps', stamps);
+    try{ count = await Backend.addFootprint(planetId); }catch(e){ count = null; }
+  }else{
+    count = await Backend.peekFootprints(planetId); /* revisit soon: look, don't stamp */
+  }
+  const shown = Math.min(count || 1, 22);
   for(let i=0;i<shown;i++){
     const s = document.createElement('span');
     s.textContent = '🐾';
@@ -1317,6 +1464,7 @@ const I18N = {
     ret:'宇 宙 へ 帰 る', resident:'住 人 に な る',
     chint:'ふれると 宇宙へ もどります',
     wl:'今日のささやき',
+    watchSoft:'だれかが ここにいます', watchLive:'いま ながめている人', tonightLbl:'今夜',
     about:[
       'これは ゲームではありません。','競争も、通知も、ありません。','',
       '夜のあいだ ずっと開いている','ちいさな宇宙です。',
@@ -1331,6 +1479,7 @@ const I18N = {
     ret:'return to space', resident:'become a resident',
     chint:'touch to return to the sky',
     wl:"Today's Whisper",
+    watchSoft:'Watching together', watchLive:'Now watching', tonightLbl:'Tonight',
     about:[
       'This is not a game.','Not a feed. Not a race.','',
       'It is a small universe','left open through the night —',
@@ -1350,7 +1499,7 @@ const CAP_EN = {
   saturn:'Rings of light arc across the whole sky —\nthe quietest seat in the universe.',
 };
 function nameMain(def){ return lang==='en' ? def.en : def.jp; }
-function nameSub(def){ return lang==='en' ? def.jp.replace(/ /g,'') : def.en; }
+function nameSub(def){ return ''; } /* V1.0: one language per sky — no bilingual name pairs */
 function captionOf(def){ return lang==='en' ? CAP_EN[def.id] : def.caption; }
 
 /* =========================================================
@@ -1418,6 +1567,11 @@ function setLang(l){
   btnResident.textContent = t.resident;
   ceremony.querySelector('.c-hint').textContent = t.chint;
   document.querySelector('#about .a-body').innerHTML = t.about.map(x=>x||'&nbsp;').join('<br>');
+  document.querySelector('#tonight .lbl').textContent = t.tonightLbl;
+  document.getElementById('tonight-name').textContent = l==='en' ? tonightEv.en : tonightEv.jp;
+  document.getElementById('tonight-jp').textContent = '';
+  document.querySelector('#watch .lbl').textContent =
+    (typeof watchState.live === 'number' && watchState.live > 0) ? t.watchLive : t.watchSoft;
   btnLang.querySelectorAll('span').forEach(s=>s.classList.toggle('act', s.dataset.l===l));
   /* refresh whatever is on stage */
   if(targetPlanet && mode==='landed'){
@@ -1456,14 +1610,59 @@ aboutEl.addEventListener('click', ()=> aboutEl.classList.remove('on'));
    UI表示・通知・文言は一切出さない。
    ========================================================= */
 
-/* ---------------- go ---------------- */
+/* ---------------- boot — every visitor must reach the sky ---------------- */
 setLang('en');
 (async function initLang(){
   const saved = await Store.get('ph-lang');
   if(saved==='jp') setLang('jp');
 })();
-resize();
-animate();
+
+function planetsOnScreen(){
+  let n = 0;
+  PLANETS.forEach(p=>{
+    planetObjs[p.id].mesh.getWorldPosition(_pc);
+    _pc.project(camera);
+    if(_pc.z < 1 && Math.abs(_pc.x) < 1.1 && Math.abs(_pc.y) < 1.1) n++;
+  });
+  return n;
+}
+let booted = false;
+function boot(){
+  if(booted) return;
+  if(innerWidth === 0 || innerHeight === 0){ requestAnimationFrame(boot); return; }
+  booted = true;
+  resize();
+  camera.position.copy(HOME_POS);
+  camera.lookAt(0,0,0);
+  animate();
+  /* after the first real frame, verify the solar system is in view */
+  requestAnimationFrame(()=>{
+    if(mode==='space' && planetsOnScreen() < 3){
+      camAngle = 0;
+      camera.position.copy(HOME_POS);
+      lookCur.set(0,0,0);
+      camera.lookAt(0,0,0);
+    }
+  });
+}
+function refresh(){ /* rotation, resize, tab return — recompute everything */
+  resize();
+  if(mode==='space' && planetsOnScreen() < 3){
+    camera.position.copy(HOME_POS); lookCur.set(0,0,0); camera.lookAt(0,0,0);
+  }
+}
+addEventListener('orientationchange', ()=> setTimeout(refresh, 350));
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    refresh();
+    try{ Ambient.resume(); }catch(e){}
+  }
+});
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', boot);
+}else{
+  boot();
+}
 </script>
 </body>
 </html>
