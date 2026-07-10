@@ -512,6 +512,202 @@
     #land-caption .cap{display:block}
   }
 
+
+  /* ---------- smartphone landscape landing layout ----------
+     Use document flow instead of two opposing absolute anchors.
+     This prevents the planet name, caption and whisper from colliding
+     in short landscape viewports such as iPhone Safari. */
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:600px){
+    html,body{height:100%;height:100dvh}
+    #space,#landing,#cosmos-bg,#vignette,#veil{width:100%;height:100%;height:100dvh}
+
+    #land-ui{
+      width:100%;
+      height:100%;
+      height:100dvh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      overflow:hidden;
+      padding:
+        calc(env(safe-area-inset-top,0px) + 44px)
+        calc(env(safe-area-inset-right,0px) + 18px)
+        calc(env(safe-area-inset-bottom,0px) + 54px)
+        calc(env(safe-area-inset-left,0px) + 18px);
+    }
+
+    #land-name{
+      position:relative;
+      top:auto;left:auto;right:auto;
+      width:min(62vw,620px);
+      flex:0 0 auto;
+      margin:0 auto;
+      padding:0;
+      text-align:center;
+    }
+    #land-name .jp{
+      font-size:clamp(20px,5.3vh,28px);
+      line-height:1.08;
+      letter-spacing:.22em;
+      text-indent:.22em;
+      white-space:normal;
+    }
+    #land-name .en{
+      margin-top:3px;
+      font-size:10px;
+      line-height:1.15;
+      letter-spacing:.16em;
+      text-indent:.16em;
+    }
+
+    #land-caption{
+      position:relative;
+      top:auto;bottom:auto;left:auto;right:auto;
+      width:min(78vw,780px);
+      max-height:none;
+      flex:0 1 auto;
+      margin:7px auto 0;
+      padding:0 10px;
+      overflow:hidden;
+      font-size:clamp(10px,2.75vh,13px);
+      line-height:1.42;
+      letter-spacing:.07em;
+      text-indent:0;
+    }
+    body.lang-en #land-caption{
+      font-size:clamp(11px,3vh,14px);
+      line-height:1.36;
+      letter-spacing:.025em;
+      text-indent:0;
+    }
+    #land-caption .cap{line-height:inherit}
+    #land-caption .wl{
+      margin-top:7px;
+      font-size:8px;
+      line-height:1.15;
+      letter-spacing:.18em;
+      text-indent:.18em;
+    }
+    #land-caption .wl::before{
+      width:34px;
+      margin:0 auto 5px;
+    }
+    #land-caption .wt{
+      margin-top:4px;
+      font-size:clamp(9px,2.45vh,12px);
+      line-height:1.34;
+      letter-spacing:.035em;
+      text-indent:0;
+    }
+    body.lang-en #land-caption .wt{
+      font-size:clamp(10px,2.7vh,13px);
+      line-height:1.3;
+      letter-spacing:.015em;
+      text-indent:0;
+    }
+
+    #btn-return{
+      bottom:calc(env(safe-area-inset-bottom,0px) + 5px);
+      min-width:148px;
+      padding:8px 16px;
+      font-size:10px;
+      line-height:1.2;
+      letter-spacing:.24em;
+      text-indent:.24em;
+      white-space:nowrap;
+    }
+    #btn-return::after{margin-top:5px}
+
+    #paws{
+      left:auto;
+      right:calc(env(safe-area-inset-right,0px) + 18px);
+      bottom:calc(env(safe-area-inset-bottom,0px) + 38px);
+      width:150px;
+      padding:0;
+      text-align:right;
+      font-size:9px;
+      line-height:1.1;
+      letter-spacing:.2em;
+      white-space:nowrap;
+      overflow:hidden;
+    }
+  }
+
+  /* Very short landscape viewport: preserve the text hierarchy and
+     remove only the decorative footprints. */
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:430px){
+    #land-ui{
+      padding-top:calc(env(safe-area-inset-top,0px) + 36px);
+      padding-bottom:calc(env(safe-area-inset-bottom,0px) + 46px);
+    }
+    #land-name{width:min(58vw,580px)}
+    #land-name .jp{font-size:clamp(18px,5.1vh,24px)}
+    #land-caption{
+      width:min(74vw,740px);
+      margin-top:4px;
+      font-size:clamp(9px,2.65vh,12px);
+      line-height:1.32;
+    }
+    body.lang-en #land-caption{
+      font-size:clamp(10px,2.85vh,13px);
+      line-height:1.28;
+    }
+    #land-caption .wl{margin-top:5px}
+    #land-caption .wt{
+      margin-top:3px;
+      font-size:clamp(9px,2.35vh,11px);
+      line-height:1.25;
+    }
+    body.lang-en #land-caption .wt{
+      font-size:clamp(9px,2.55vh,12px);
+      line-height:1.23;
+    }
+    #paws{display:none}
+    #btn-return{bottom:calc(env(safe-area-inset-bottom,0px) + 2px)}
+  }
+
+
+  /* ---------- final mobile typography tuning ---------- */
+  #title .mobile-br{display:none}
+
+  /* Balanced two-line Japanese question on narrow phones. */
+  @media (max-width:768px){
+    #title .mobile-br{display:inline}
+    body:not(.lang-en) #title h1{
+      max-width:92vw;
+      font-size:clamp(25px,7.2vw,34px);
+      line-height:1.65;
+      letter-spacing:.20em;
+      text-indent:.20em;
+    }
+  }
+
+  /* Smartphone landscape: lift the planet name and reserve a clear gap
+     before the description so short names such as 月 never merge into it. */
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:600px){
+    #title .mobile-br{display:inline}
+    body:not(.lang-en) #title h1{
+      max-width:88vw;
+      font-size:clamp(28px,7.2vh,40px);
+      line-height:1.55;
+      letter-spacing:.18em;
+      text-indent:.18em;
+    }
+    #land-name{
+      margin:-16px auto 16px;
+    }
+    #land-caption{
+      margin-top:0;
+    }
+  }
+
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:430px){
+    #land-name{
+      margin:-10px auto 10px;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce){
     #title h1,#title .en{animation-duration:.01s;animation-delay:0s}
   }
@@ -525,7 +721,7 @@
 <div id="veil"></div>
 
 <div id="title">
-  <h1>あなたはどこの星の住人ですか？</h1>
+  <h1>あなたはどこの星の<span class="mobile-br"><br></span>住人ですか？</h1>
   <div class="en">Where do you belong?</div>
 </div>
 <div id="hint">惑星 に ふれてください</div>
@@ -1387,6 +1583,7 @@ document.getElementById('btn-sound').addEventListener('click', e=>{
 const SUPABASE_URL  = 'https://oyqhvdsvfkdosymsczfe.supabase.co';   // e.g. 'https://xxxx.supabase.co'
 const SUPABASE_ANON = 'sb_publishable_ez7alW54xoHhtBjc08efYA_LROKOZ_Z';   // anon public key (safe to expose; RLS + RPC enforced)
 
+
 const Store = (()=>{ /* device-local prefs (lang, my number, stamp times) */
   const hasArtifact = typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
   const mem = {};
@@ -1494,7 +1691,7 @@ const watchState = {live:null};
 /* --- ② Tonight — one sky event per day, tap to travel there --- */
 const EVENTS = [
   {p:'saturn',  en:'Saturn Aurora',      jp:'土星のオーロラ'},
-  {p:'moon',    en:'Earthrise',          jp:'地球の出'},
+  {p:'moon',    en:'Earthrise',          jp:'月から見る地球'},
   {p:'mars',    en:'Night of Twin Moons',jp:'ふたつの月の夜'},
   {p:'jupiter', en:'The Great Swirl',    jp:'大渦の夜'},
   {p:'venus',   en:'Golden Haze',        jp:'黄金の霞'},
@@ -1590,7 +1787,7 @@ setInterval(()=>{
 let lang = 'en';
 const I18N = {
   jp:{
-    title:'あなたはどこの星の住人ですか？', sub:'',
+    title:'あなたはどこの星の<span class="mobile-br"><br></span>住人ですか？', sub:'',
     hint:'そっと、惑星にふれて',
     ret:'宇 宙 へ 帰 る', resident:'住 人 に な る',
     chint:'ふれると 宇宙へ もどります',
@@ -1691,7 +1888,7 @@ function setLang(l){
   lang = l;
   document.body.classList.toggle('lang-en', l==='en');
   const t = I18N[l];
-  titleEl.querySelector('h1').textContent = t.title;
+  titleEl.querySelector('h1').innerHTML = t.title;
   titleEl.querySelector('.en').textContent = t.sub;
   titleEl.querySelector('.en').style.display = t.sub ? '' : 'none';
   hintEl.textContent = t.hint;
