@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STILLAR — A Quiet Planet Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#e9e6f2;
+    --ink-dim:rgba(233,230,242,.55);
+    --gold:#d8c9a3;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#050510}
+  body{
+    font-family:'Shippori Mincho',serif;
+    color:var(--ink);
+    user-select:none;-webkit-user-select:none;
+  }
+
+  /* ---------- deep space backdrop (behind WebGL) ---------- */
+  #cosmos-bg{
+    position:fixed;inset:0;
+    background:
+      radial-gradient(ellipse 80% 60% at 70% 20%, rgba(70,50,120,.25), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 20% 75%, rgba(30,60,110,.22), transparent 60%),
+      radial-gradient(ellipse 100% 100% at 50% 50%, #0b0b22 0%, #050510 70%, #020208 100%);
+  }
+  #space{position:fixed;inset:0;display:block;touch-action:none}
+  #landing{position:fixed;inset:0;display:block;opacity:0;pointer-events:none;transition:opacity 1.6s ease}
+  #landing.on{opacity:1;pointer-events:auto}
+
+  /* ---------- fade veil ---------- */
+  #veil{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity 1.1s ease;z-index:40}
+  #veil.on{opacity:1}
+
+  /* ---------- title ---------- */
+  #title{
+    position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    z-index:20;pointer-events:none;
+    padding:0 24px;
+    transition:opacity 1.4s ease;
+  }
+  #title.hidden{opacity:0}
+  #title h1{
+    font-weight:400;
+    font-size:clamp(20px,4.6vw,38px);
+    letter-spacing:.35em;text-indent:.35em;
+    line-height:2;
+    text-shadow:0 0 24px rgba(160,150,255,.35);
+    opacity:0;animation:rise 3.2s ease .8s forwards;
+  }
+  #title .en{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:clamp(13px,2.4vw,19px);
+    letter-spacing:.42em;text-indent:.42em;
+    color:var(--ink-dim);
+    margin-top:18px;
+    opacity:0;animation:rise 3.2s ease 1.7s forwards;
+  }
+  #hint{
+    position:fixed;left:0;right:0;bottom:9vh;text-align:center;
+    font-size:12px;letter-spacing:.5em;text-indent:.5em;
+    color:rgba(233,230,242,.42);
+    z-index:20;pointer-events:none;
+    opacity:0;transition:opacity 2s ease;
+  }
+  #hint.show{opacity:1}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* ---------- planet name whisper (hover / zoom) ---------- */
+  #whisper{
+    position:fixed;left:50%;bottom:16vh;transform:translateX(-50%);
+    z-index:22;pointer-events:none;text-align:center;
+    opacity:0;transition:opacity .9s ease;
+  }
+  #whisper.show{opacity:1}
+  #whisper .jp{font-size:clamp(16px,3vw,22px);letter-spacing:.5em;text-indent:.5em}
+  #whisper .en{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:12px;letter-spacing:.4em;color:var(--ink-dim);margin-top:8px}
+
+  /* ---------- landing overlay text ---------- */
+  #land-ui{position:fixed;inset:0;z-index:30;pointer-events:none;opacity:0;transition:opacity 1.8s ease}
+  #land-ui.on{opacity:1}
+  #land-name{
+    position:absolute;top:12vh;left:0;right:0;text-align:center;
+  }
+  #land-name .jp{font-size:clamp(24px,5vw,40px);font-weight:400;letter-spacing:.5em;text-indent:.5em;
+    text-shadow:0 2px 30px rgba(0,0,0,.5)}
+  #land-name .en{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:clamp(12px,2vw,16px);letter-spacing:.5em;text-indent:.5em;margin-top:12px;opacity:.65}
+  #land-caption{
+    position:absolute;bottom:13vh;left:0;right:0;text-align:center;
+    font-size:clamp(13px,2.6vw,17px);letter-spacing:.28em;text-indent:.28em;line-height:2.4;
+    padding:0 28px;opacity:.85;
+    text-shadow:0 1px 20px rgba(0,0,0,.6);
+  }
+  #btn-return{
+    position:absolute;bottom:5vh;left:50%;transform:translateX(-50%);
+    pointer-events:auto;cursor:pointer;
+    background:none;border:none;color:var(--ink-dim);
+    font-family:'Shippori Mincho',serif;font-size:12px;
+    letter-spacing:.45em;text-indent:.45em;
+    padding:14px 26px;
+    transition:color .6s ease;
+  }
+  #btn-return:hover{color:var(--ink)}
+  #btn-return::after{
+    content:"";display:block;height:1px;margin-top:8px;
+    background:linear-gradient(90deg,transparent,rgba(233,230,242,.35),transparent);
+  }
+
+  /* ---------- sound toggle ---------- */
+  #btn-sound{
+    position:fixed;top:calc(env(safe-area-inset-top, 0px) + 18px);right:20px;z-index:50;
+    width:42px;height:42px;border-radius:50%;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(233,230,242,.18);
+    color:var(--ink-dim);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:color .5s,border-color .5s;
+    backdrop-filter:blur(4px);
+  }
+  #btn-sound:hover{color:var(--ink);border-color:rgba(233,230,242,.4)}
+  #btn-sound svg{width:18px;height:18px}
+  #btn-sound .off-line{display:none}
+  #btn-sound.muted .off-line{display:block}
+  #btn-sound.muted .waves{display:none}
+
+  /* ---------- language toggle ---------- */
+  #btn-lang{
+    position:fixed;top:calc(env(safe-area-inset-top, 0px) + 21px);right:72px;z-index:50;
+    height:36px;padding:0 14px;border-radius:999px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(233,230,242,.18);
+    cursor:pointer;
+    font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.1em;
+    display:flex;align-items:center;gap:8px;
+    transition:border-color .5s;
+    backdrop-filter:blur(4px);
+    color:rgba(233,230,242,.3);
+  }
+  #btn-lang:hover{border-color:rgba(233,230,242,.4)}
+  #btn-lang span{color:rgba(233,230,242,.3);transition:color .5s;font-family:inherit}
+  #btn-lang span[data-l="jp"]{font-family:'Shippori Mincho',serif;font-size:10px}
+  #btn-lang span.act{color:var(--ink)}
+  body.lang-en{font-family:'Cormorant Garamond',serif}
+  body.lang-en #title h1{
+    font-family:'Cormorant Garamond',serif;font-weight:300;font-style:italic;
+    letter-spacing:.24em;text-indent:.24em;
+  }
+  body.lang-en #title .en{
+    font-family:'Shippori Mincho',serif;font-style:normal;
+    letter-spacing:.4em;text-indent:.4em;
+  }
+  body.lang-en #hint{font-family:'Cormorant Garamond',serif;letter-spacing:.4em;text-indent:.4em;font-size:13px}
+  body.lang-en #btn-return,
+  body.lang-en #btn-resident,
+  body.lang-en #ceremony .c-hint{
+    font-family:'Cormorant Garamond',serif;
+    letter-spacing:.3em;text-indent:.3em;font-size:13px;
+  }
+  body.lang-en #tonight-jp{display:none}
+  body.lang-en #land-caption{
+    font-family:'Cormorant Garamond',serif;font-style:italic;
+    letter-spacing:.1em;text-indent:.1em;
+    font-size:clamp(15px,2.9vw,20px);line-height:2.1;
+  }
+  body.lang-en #land-name .jp,
+  body.lang-en #whisper .jp{font-family:'Cormorant Garamond',serif;font-weight:300;letter-spacing:.32em;text-indent:.32em}
+  body.lang-en #land-name .en,
+  body.lang-en #whisper .en{font-family:'Shippori Mincho',serif;font-style:normal}
+
+  /* ---------- quiet HUD ---------- */
+  #hud-top{
+    position:fixed;top:calc(env(safe-area-inset-top,0px) + 22px);left:22px;z-index:21;
+    pointer-events:none;transition:opacity 1.4s ease;
+  }
+  #watch .e{font-size:13px;opacity:.8;margin-right:10px}
+  #watch .lbl{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:11px;letter-spacing:.3em;color:rgba(233,230,242,.4);
+  }
+  #watch-n{
+    display:block;margin-top:6px;
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:22px;letter-spacing:.14em;color:rgba(233,230,242,.75);
+  }
+  #res-no{
+    margin-top:14px;
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:11px;letter-spacing:.28em;color:rgba(216,201,163,.55);
+  }
+  #tonight{
+    position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 26px);left:22px;z-index:21;
+    cursor:pointer;transition:opacity 1.4s ease;
+  }
+  #tonight .lbl{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:11px;letter-spacing:.3em;color:rgba(233,230,242,.4);
+  }
+  #tonight-name{
+    display:block;margin-top:6px;
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:17px;letter-spacing:.16em;color:rgba(233,230,242,.8);
+    transition:color .6s;
+  }
+  #tonight-jp{
+    display:block;margin-top:4px;
+    font-size:10px;letter-spacing:.35em;color:rgba(233,230,242,.35);
+  }
+  #tonight:hover #tonight-name{color:var(--gold)}
+  #btn-resident{
+    position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 26px);right:22px;z-index:21;
+    background:none;border:none;cursor:pointer;
+    font-family:'Shippori Mincho',serif;font-size:11px;
+    letter-spacing:.4em;text-indent:.4em;
+    color:rgba(233,230,242,.45);
+    padding:10px 0;transition:color .6s,opacity 1.4s ease;
+  }
+  #btn-resident:hover{color:var(--ink)}
+  #btn-resident::after{
+    content:"";display:block;height:1px;margin-top:7px;
+    background:linear-gradient(90deg,transparent,rgba(216,201,163,.4),transparent);
+  }
+  body.away #hud-top, body.away #tonight, body.away #btn-resident{opacity:0;pointer-events:none}
+  #btn-resident.gone{display:none}
+
+  /* ---------- resident ceremony ---------- */
+  #ceremony{
+    position:fixed;inset:0;z-index:70;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(2,2,10,.93);backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity 1.6s ease;
+    text-align:center;cursor:pointer;
+  }
+  #ceremony.on{opacity:1;pointer-events:auto}
+  #ceremony .c-en{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:clamp(15px,3vw,21px);letter-spacing:.5em;text-indent:.5em;
+    color:rgba(233,230,242,.6);
+    opacity:0;transform:translateY(10px);transition:all 1.6s ease .4s;
+  }
+  #ceremony .c-title{
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:clamp(28px,6.5vw,52px);letter-spacing:.34em;text-indent:.34em;
+    margin-top:22px;color:var(--ink);
+    text-shadow:0 0 40px rgba(160,150,255,.4);
+    opacity:0;transform:translateY(10px);transition:all 1.6s ease 1.2s;
+  }
+  #ceremony .c-lbl{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:12px;letter-spacing:.45em;text-indent:.45em;
+    margin-top:7vh;color:rgba(216,201,163,.6);
+    opacity:0;transition:opacity 1.6s ease 2.2s;
+  }
+  #ceremony .c-no{
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:clamp(34px,8vw,60px);letter-spacing:.3em;text-indent:.3em;
+    margin-top:14px;color:var(--gold);
+    text-shadow:0 0 30px rgba(216,201,163,.35);
+    opacity:0;transition:opacity 2s ease 2.8s;
+  }
+  #ceremony .c-hint{
+    position:absolute;bottom:7vh;left:0;right:0;
+    font-size:10px;letter-spacing:.5em;text-indent:.5em;
+    color:rgba(233,230,242,.3);
+    opacity:0;transition:opacity 2s ease 4.5s;
+  }
+  #ceremony.on .c-en,#ceremony.on .c-title{opacity:1;transform:none}
+  #ceremony.on .c-lbl,#ceremony.on .c-no,#ceremony.on .c-hint{opacity:1}
+
+  /* ---------- footprints ---------- */
+  #paws{
+    position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+    left:0;right:0;text-align:center;
+    font-size:13px;letter-spacing:.6em;
+    line-height:2;padding:0 6vw;
+    pointer-events:none;
+  }
+  #paws span{opacity:0;display:inline-block;transition:opacity 1.2s ease}
+  #paws span.in{opacity:.4}
+
+  /* ---------- STILLAR wordmark ---------- */
+  #wordmark{
+    position:fixed;top:calc(env(safe-area-inset-top,0px) + 24px);left:50%;transform:translateX(-50%);
+    z-index:21;text-align:center;cursor:pointer;
+    transition:opacity 1.4s ease;
+  }
+  #wordmark span{
+    display:block;
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:15px;letter-spacing:.55em;text-indent:.55em;
+    color:rgba(233,230,242,.75);
+  }
+  #wordmark em{
+    display:block;margin-top:6px;
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:9px;letter-spacing:.3em;text-indent:.3em;
+    color:rgba(233,230,242,.35);
+  }
+  #wordmark:hover span{color:var(--ink)}
+  body.away #wordmark{opacity:0;pointer-events:none}
+
+  /* ---------- About — the world, not the company ---------- */
+  #about{
+    position:fixed;inset:0;z-index:65;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(3,3,12,.95);backdrop-filter:blur(8px);
+    opacity:0;pointer-events:none;transition:opacity 1.4s ease;
+    text-align:center;cursor:pointer;overflow-y:auto;
+    padding:10vh 8vw;
+  }
+  #about.on{opacity:1;pointer-events:auto}
+  #about .a-brand{
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:clamp(22px,5vw,34px);letter-spacing:.5em;text-indent:.5em;
+    color:var(--ink);
+  }
+  #about .a-tag{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:12px;letter-spacing:.3em;text-indent:.3em;
+    color:rgba(233,230,242,.45);margin-top:14px;
+  }
+  #about .a-body{
+    margin-top:7vh;
+    font-size:clamp(13px,2.4vw,16px);
+    letter-spacing:.18em;text-indent:.18em;
+    line-height:2.6;color:rgba(233,230,242,.8);
+  }
+  body.lang-en #about .a-body{
+    font-family:'Cormorant Garamond',serif;font-style:italic;
+    font-size:clamp(15px,2.7vw,19px);letter-spacing:.1em;text-indent:.1em;line-height:2.3;
+  }
+  #about .a-home{
+    margin-top:6vh;
+    font-family:'Cormorant Garamond',serif;font-weight:300;
+    font-size:clamp(17px,3.4vw,24px);letter-spacing:.34em;text-indent:.34em;
+    color:var(--gold);
+  }
+  #about .a-foot{
+    margin-top:8vh;
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:10px;letter-spacing:.28em;text-indent:.28em;line-height:2.2;
+    color:rgba(233,230,242,.3);
+  }
+
+  /* ---------- Today's Whisper ---------- */
+  #land-caption .wl{
+    margin-top:4.5vh;
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;
+    font-size:10px;letter-spacing:.4em;text-indent:.4em;
+    color:rgba(216,201,163,.55);
+  }
+  #land-caption .wl::before{
+    content:"";display:block;width:44px;height:1px;margin:0 auto 14px;
+    background:linear-gradient(90deg,transparent,rgba(216,201,163,.4),transparent);
+  }
+  #land-caption .wt{
+    margin-top:12px;
+    font-size:clamp(12px,2.3vw,15px);
+    letter-spacing:.22em;text-indent:.22em;line-height:2.3;
+    color:rgba(233,230,242,.72);
+  }
+  body.lang-en #land-caption .wt{
+    font-family:'Cormorant Garamond',serif;font-style:italic;
+    font-size:clamp(14px,2.6vw,17px);letter-spacing:.08em;text-indent:.08em;
+  }
+
+  /* ---------- vignette ---------- */
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:15;
+    box-shadow:inset 0 0 18vmax rgba(0,0,10,.65)}
+
+  @media (prefers-reduced-motion: reduce){
+    #title h1,#title .en{animation-duration:.01s;animation-delay:0s}
+  }
+</style>
+</head>
+<body>
+<div id="cosmos-bg"></div>
+<canvas id="space"></canvas>
+<canvas id="landing"></canvas>
+<div id="vignette"></div>
+<div id="veil"></div>
+
+<div id="title">
+  <h1>あなたはどこの星の住人ですか？</h1>
+  <div class="en">Where do you belong?</div>
+</div>
+<div id="hint">惑星 に ふれてください</div>
+
+<div id="whisper"><div class="jp"></div><div class="en"></div></div>
+
+<div id="hud-top">
+  <div id="watch"><span class="e">🌍</span><span class="lbl">Now watching</span><span id="watch-n">—</span></div>
+  <div id="res-no"></div>
+</div>
+<div id="tonight">
+  <span class="lbl">Tonight</span>
+  <span id="tonight-name">—</span>
+  <span id="tonight-jp"></span>
+</div>
+<button id="btn-resident">住 人 に な る</button>
+
+<div id="ceremony">
+  <div class="c-en">Welcome</div>
+  <div class="c-title">STILLAR</div>
+  <div class="c-lbl">Resident No.</div>
+  <div class="c-no">000000</div>
+  <div class="c-hint">ふれると 宇宙へ もどります</div>
+</div>
+
+<div id="land-ui">
+  <div id="land-name"><div class="jp"></div><div class="en"></div></div>
+  <div id="land-caption"><div class="cap"></div><div class="wl"></div><div class="wt"></div></div>
+  <div id="paws"></div>
+  <button id="btn-return">宇 宙 へ 帰 る</button>
+</div>
+
+<div id="wordmark"><span>STILLAR</span><em>A Quiet Planet Home.</em></div>
+
+<div id="about">
+  <div class="a-brand">STILLAR</div>
+  <div class="a-tag">A Quiet Planet Home.</div>
+  <div class="a-body"></div>
+  <div class="a-home">Welcome Home.</div>
+  <div class="a-foot">Created in Japan<br>by Twinkle Lab.</div>
+</div>
+
+<button id="btn-lang" aria-label="Language / 言語"><span data-l="en">EN</span>|<span data-l="jp">日本語</span></button>
+<button id="btn-sound" aria-label="音の切り替え">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+    <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none" opacity=".85"/>
+    <path class="waves" d="M16 9c1 .8 1.5 1.9 1.5 3s-.5 2.2-1.5 3M18.5 6.5c1.7 1.4 2.5 3.3 2.5 5.5s-.8 4.1-2.5 5.5"/>
+    <line class="off-line" x1="17" y1="8" x2="22" y2="16"/>
+  </svg>
+</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* =========================================================
+   PLANET HOME — a quiet planetarium on the web
+   ========================================================= */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SPEED = REDUCED ? 0.35 : 1;
+
+/* ---------------- planet definitions ---------------- */
+const PLANETS = [
+  {id:'mercury', jp:'水 星', en:'Mercury', size:0.55, dist:9,  orbit:0.030, tint:0xcbb8a6,
+   caption:'太陽にいちばん近い、沈黙の星。\nここでは 光と影だけが 時間を数えます。'},
+  {id:'venus',   jp:'金 星', en:'Venus',   size:0.95, dist:12.5, orbit:0.023, tint:0xf0d3a0,
+   caption:'黄金の霞につつまれた星。\n夕暮れが 永遠につづく場所。'},
+  {id:'earth',   jp:'地 球', en:'Earth',   size:1.05, dist:16.5, orbit:0.018, tint:0x7fb2e8,
+   caption:'青くて、やわらかくて、なつかしい。\nおかえりなさい。'},
+  {id:'moon',    jp:'月',    en:'The Moon',size:0.32, dist:2.75, orbit:0.09, tint:0xd9d9e2, parent:'earth',
+   caption:'静けさの海のほとりで、\n地球が のぼるのを 眺めましょう。'},
+  {id:'mars',    jp:'火 星', en:'Mars',    size:0.75, dist:21,  orbit:0.0145, tint:0xe0917a,
+   caption:'薔薇色の砂の上を、風だけが歩く星。\nふたつの月が 空に浮かんでいます。'},
+  {id:'jupiter', jp:'木 星', en:'Jupiter', size:2.7,  dist:28.5, orbit:0.0095, tint:0xe4c39a,
+   caption:'雲の海に 地面はありません。\n嵐さえ ここでは 音楽のように渦を巻きます。'},
+  {id:'saturn',  jp:'土 星', en:'Saturn',  size:2.25, dist:37,  orbit:0.0068, tint:0xefd9ae, ring:true,
+   caption:'空いっぱいに 光の環がかかる星。\n宇宙で いちばん静かな観覧席です。'},
+];
+
+/* ---------------- three.js scene ---------------- */
+const canvas = document.getElementById('space');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
+
+const HOME_POS = new THREE.Vector3(0, 30, 52);
+camera.position.copy(HOME_POS);
+camera.lookAt(0,0,0);
+
+scene.add(new THREE.AmbientLight(0x2a2a4a, 1.4));
+const sunLight = new THREE.PointLight(0xfff2d8, 2.2, 300, 1.6);
+scene.add(sunLight);
+
+/* --- texture helpers (procedural, no downloads) --- */
+function canvasTexture(w,h,draw){
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  return t;
+}
+function hex(n){return '#'+n.toString(16).padStart(6,'0');}
+function shade(color, f){ // lighten/darken THREE color int
+  const c = new THREE.Color(color);
+  c.offsetHSL(0, 0, f);
+  return c.getStyle();
+}
+function noiseTexture(base, spots, alpha){
+  return canvasTexture(256,128,(g,w,h)=>{
+    g.fillStyle = hex(base); g.fillRect(0,0,w,h);
+    for(let i=0;i<spots;i++){
+      const r = 2+Math.random()*14;
+      g.beginPath();
+      g.arc(Math.random()*w, Math.random()*h, r, 0, 7);
+      g.fillStyle = Math.random()>.5 ? shade(base,.06) : shade(base,-.07);
+      g.globalAlpha = alpha;
+      g.fill();
+    }
+    g.globalAlpha = 1;
+  });
+}
+function bandTexture(base, bands){
+  return canvasTexture(256,128,(g,w,h)=>{
+    g.fillStyle = hex(base); g.fillRect(0,0,w,h);
+    let y = 0;
+    for(let i=0;i<bands;i++){
+      const bh = h/bands * (0.6+Math.random()*0.8);
+      g.fillStyle = shade(base, (Math.random()-.5)*.16);
+      g.globalAlpha = .8;
+      g.fillRect(0, y, w, bh);
+      y += bh;
+    }
+    g.globalAlpha = .25;
+    for(let i=0;i<50;i++){
+      g.beginPath();
+      g.ellipse(Math.random()*w, Math.random()*h, 8+Math.random()*22, 3+Math.random()*5, 0, 0, 7);
+      g.fillStyle = shade(base, .1);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+  });
+}
+function glowSprite(color, inner){
+  const t = canvasTexture(256,256,(g)=>{
+    const grd = g.createRadialGradient(128,128,0,128,128,128);
+    grd.addColorStop(0, inner);
+    grd.addColorStop(.25, color);
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(0,0,256,256);
+  });
+  const m = new THREE.SpriteMaterial({map:t, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false});
+  return new THREE.Sprite(m);
+}
+
+/* --- stars --- */
+function makeStars(count, spread, size, opacity){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.acos(2*Math.random()-1);
+    const r = spread*(0.5+Math.random()*0.5);
+    pos.set([
+      r*Math.sin(phi)*Math.cos(theta),
+      r*Math.cos(phi),
+      r*Math.sin(phi)*Math.sin(theta)
+    ], i*3);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({color:0xdfe3ff, size, transparent:true, opacity, sizeAttenuation:true, depthWrite:false});
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  return pts;
+}
+const stars1 = makeStars(1400, 220, 0.55, 0.9);
+const stars2 = makeStars(900, 220, 0.32, 0.55);
+
+/* --- sun --- */
+const sun = new THREE.Mesh(
+  new THREE.SphereGeometry(3.4, 40, 40),
+  new THREE.MeshBasicMaterial({color:0xffe9bd})
+);
+scene.add(sun);
+const sunGlow1 = glowSprite('rgba(255,214,140,.55)', 'rgba(255,246,220,1)');
+sunGlow1.scale.set(22,22,1); sun.add(sunGlow1);
+const sunGlow2 = glowSprite('rgba(255,170,110,.18)', 'rgba(255,220,170,.4)');
+sunGlow2.scale.set(52,52,1); sun.add(sunGlow2);
+
+/* --- planets --- */
+const planetObjs = {};
+const clickables = [];
+PLANETS.forEach(p=>{
+  let tex;
+  if(p.id==='jupiter' || p.id==='saturn' || p.id==='venus') tex = bandTexture(p.tint, p.id==='jupiter'?9:6);
+  else tex = noiseTexture(p.tint, 120, .5);
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(p.size, 36, 36),
+    new THREE.MeshStandardMaterial({map:tex, roughness:.9, metalness:0,
+      emissive:new THREE.Color(p.tint), emissiveIntensity:.14})
+  );
+  mesh.rotation.z = 0.2;
+  const pivot = new THREE.Object3D();
+  pivot.rotation.y = Math.random()*Math.PI*2;
+  const holder = new THREE.Object3D();
+  holder.position.x = p.dist;
+  pivot.add(holder);
+  holder.add(mesh);
+
+  // soft halo
+  const halo = glowSprite(`rgba(${(p.tint>>16)&255},${(p.tint>>8)&255},${p.tint&255},.28)`, 'rgba(255,255,255,.15)');
+  halo.scale.set(p.size*4.4, p.size*4.4, 1);
+  mesh.add(halo);
+
+  // ring for saturn
+  if(p.ring){
+    const ringTex = canvasTexture(256,16,(g,w,h)=>{
+      for(let x=0;x<w;x++){
+        const a = .25 + .55*Math.abs(Math.sin(x*.12)) * (x/w);
+        g.fillStyle = `rgba(238,220,180,${a*.8})`;
+        g.fillRect(x,0,1,h);
+      }
+    });
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(p.size*1.5, p.size*2.5, 80),
+      new THREE.MeshBasicMaterial({map:ringTex, side:THREE.DoubleSide, transparent:true, opacity:.85, depthWrite:false})
+    );
+    ring.rotation.x = Math.PI/2 - 0.35;
+    mesh.add(ring);
+  }
+
+  // invisible touch target — sized so neighbors don't steal the tap
+  const hitR = p.parent ? p.size*2.6 : Math.max(p.size*1.9, 1.35);
+  const hit = new THREE.Mesh(
+    new THREE.SphereGeometry(hitR, 8, 8),
+    new THREE.MeshBasicMaterial({visible:false})
+  );
+  hit.userData.planetId = p.id;
+  mesh.add(hit);
+  clickables.push(hit);
+
+  // orbit line
+  if(!p.parent){
+    const orbitGeo = new THREE.RingGeometry(p.dist-0.02, p.dist+0.02, 160);
+    const orbit = new THREE.Mesh(orbitGeo, new THREE.MeshBasicMaterial({
+      color:0x9aa0ff, transparent:true, opacity:.07, side:THREE.DoubleSide, depthWrite:false}));
+    orbit.rotation.x = Math.PI/2;
+    scene.add(orbit);
+    scene.add(pivot);
+  }
+  planetObjs[p.id] = {def:p, pivot, holder, mesh};
+});
+/* attach moon to earth */
+planetObjs.earth.mesh.add(planetObjs.moon.pivot);
+
+/* ---------------- state ---------------- */
+let mode = 'space';          // 'space' | 'zooming' | 'landed' | 'returning'
+let targetPlanet = null;
+let zoomT = 0;
+const zoomFrom = new THREE.Vector3();
+const lookFrom = new THREE.Vector3(0,0,0);
+const lookCur = new THREE.Vector3(0,0,0);
+let camAngle = 0;
+const pointer = {x:0, y:0};
+let firstGesture = false;
+
+const $ = s=>document.querySelector(s);
+const titleEl = $('#title'), hintEl = $('#hint'), veil = $('#veil');
+const whisper = $('#whisper');
+const landUI = $('#land-ui');
+
+setTimeout(()=>hintEl.classList.add('show'), 4500);
+
+/* ---------------- resize ---------------- */
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+  landingCanvas.width = w * Math.min(devicePixelRatio,2);
+  landingCanvas.height = h * Math.min(devicePixelRatio,2);
+}
+addEventListener('resize', resize);
+
+/* ---------------- interaction ---------------- */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+const _pc = new THREE.Vector3();
+function pick(cx, cy){
+  ndc.x = (cx/innerWidth)*2-1;
+  ndc.y = -(cy/innerHeight)*2+1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+  if(!hits.length) return null;
+  /* overlapping targets (Earth & Moon): choose the one whose
+     center sits closest to the finger on screen */
+  let best = null, bd = Infinity;
+  hits.forEach(h=>{
+    h.object.parent.getWorldPosition(_pc);
+    _pc.project(camera);
+    const d = (_pc.x-ndc.x)**2 + (_pc.y-ndc.y)**2;
+    if(d < bd){ bd = d; best = h.object.userData.planetId; }
+  });
+  return best;
+}
+
+let downPos = null;
+canvas.addEventListener('pointerdown', e=>{
+  ensureAudio();
+  downPos = {x:e.clientX, y:e.clientY};
+});
+canvas.addEventListener('pointerup', e=>{
+  if(!downPos) return;
+  const moved = Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y);
+  downPos = null;
+  if(moved > 12 || mode!=='space') return;
+  const id = pick(e.clientX, e.clientY);
+  if(id) flyTo(id);
+});
+canvas.addEventListener('pointermove', e=>{
+  pointer.x = (e.clientX/innerWidth - .5);
+  pointer.y = (e.clientY/innerHeight - .5);
+  if(mode==='space' && e.pointerType==='mouse'){
+    const id = pick(e.clientX, e.clientY);
+    if(id){
+      const d = planetObjs[id].def;
+      whisper.querySelector('.jp').textContent = nameMain(d);
+      whisper.querySelector('.en').textContent = nameSub(d);
+      whisper.classList.add('show');
+      canvas.style.cursor = 'pointer';
+    }else{
+      whisper.classList.remove('show');
+      canvas.style.cursor = 'default';
+    }
+  }
+});
+
+function planetWorldPos(id, out){
+  planetObjs[id].mesh.getWorldPosition(out);
+  return out;
+}
+
+function flyTo(id){
+  targetPlanet = id;
+  mode = 'zooming';
+  zoomT = 0;
+  zoomFrom.copy(camera.position);
+  lookFrom.copy(lookCur);
+  titleEl.classList.add('hidden');
+  hintEl.classList.remove('show');
+  document.body.classList.add('away');
+  const d = planetObjs[id].def;
+  whisper.querySelector('.jp').textContent = nameMain(d);
+  whisper.querySelector('.en').textContent = nameSub(d);
+  whisper.classList.add('show');
+  Ambient.play(id); // music begins its journey with you
+}
+
+$('#btn-return').addEventListener('click', ()=>{
+  if(mode!=='landed') return;
+  mode = 'returning';
+  landUI.classList.remove('on');
+  veil.classList.add('on');
+  Ambient.play('space');
+  setTimeout(()=>{
+    stopLanding();
+    document.getElementById('landing').classList.remove('on');
+    // reset camera home
+    camAngle = 0;
+    camera.position.copy(HOME_POS);
+    lookCur.set(0,0,0);
+    mode = 'space';
+    veil.classList.remove('on');
+    titleEl.classList.remove('hidden');
+    document.body.classList.remove('away');
+    if(autoTour){
+      /* still wandering: rest in space a while, then drift onward */
+      autoTour = false;
+      lastAct = performance.now() - (IDLE_MS - 25000);
+    }
+  }, 1200);
+});
+
+/* ---------------- render loop (space) ---------------- */
+const clock = new THREE.Clock();
+const _v = new THREE.Vector3();
+function ease(t){return t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // orbits & spins
+  PLANETS.forEach(p=>{
+    const o = planetObjs[p.id];
+    o.pivot.rotation.y += p.orbit * dt * 2.4 * SPEED;
+    o.mesh.rotation.y += dt*.12*SPEED;
+  });
+  sun.rotation.y += dt*.02;
+  stars1.rotation.y += dt*.0035*SPEED;
+  stars2.rotation.y -= dt*.002*SPEED;
+  stars1.material.opacity = .75 + Math.sin(t*.7)*.15;
+  stars2.material.opacity = .45 + Math.sin(t*.9+2)*.12;
+  sunGlow1.material.opacity = .9 + Math.sin(t*1.3)*.08;
+
+  if(mode==='space' || mode==='returning'){
+    camAngle += dt*.02*SPEED;
+    const px = pointer.x*4, py = pointer.y*2.5;
+    camera.position.x = Math.sin(camAngle)*HOME_POS.z*.9 + px;
+    camera.position.z = Math.cos(camAngle)*HOME_POS.z*.9;
+    camera.position.y = HOME_POS.y + py;
+    lookCur.lerp(_v.set(0,0,0), .04);
+    camera.lookAt(lookCur);
+  }
+  else if(mode==='zooming'){
+    zoomT += dt/2.6;
+    const k = ease(Math.min(zoomT,1));
+    const p = planetObjs[targetPlanet];
+    planetWorldPos(targetPlanet, _v);
+    // destination: hover near planet
+    const off = p.def.size*3.2;
+    const dest = _v.clone().add(new THREE.Vector3(off*.6, off*.45, off));
+    camera.position.lerpVectors(zoomFrom, dest, k);
+    lookCur.lerpVectors(lookFrom, _v, Math.min(k*1.4,1));
+    camera.lookAt(lookCur);
+    if(zoomT >= 0.72) veil.classList.add('on');
+    if(zoomT >= 1){
+      mode = 'landed';
+      whisper.classList.remove('show');
+      startLanding(targetPlanet);
+      stampFootprints(targetPlanet);
+      document.getElementById('landing').classList.add('on');
+      setTimeout(()=>{ veil.classList.remove('on'); landUI.classList.add('on'); }, 350);
+      if(autoTour){
+        clearTimeout(tourTimer);
+        tourTimer = setTimeout(()=>{
+          if(autoTour && mode==='landed') document.getElementById('btn-return').click();
+        }, STAY_MS);
+      }
+    }
+  }
+  if(mode==='landed') return; // the painted sky is on stage; let the GPU rest
+
+  renderer.render(scene, camera);
+}
+
+/* =========================================================
+   LANDING SCENES — painted skies (2D canvas, feather-light)
+   ========================================================= */
+const landingCanvas = document.getElementById('landing');
+const lc = landingCanvas.getContext('2d');
+let landingScene = null;
+let landingRAF = null;
+
+const SCENES = {
+  mercury:{sky:['#0d0a14','#2b1f38','#6b4a56','#c98a5e'], ground:'#17101f', stars:.9,
+    particles:{n:26,color:'rgba(255,190,130,.5)',vy:-8,size:1.6,drift:6}, extra:'bigsun'},
+  venus:{sky:['#3a2410','#7a4a1e','#c98a3e','#f2c878'], ground:'#241608', stars:0,
+    particles:{n:40,color:'rgba(255,225,170,.35)',vy:-4,size:2.2,drift:14}, extra:'haze'},
+  earth:{sky:['#0b1b3a','#1e3a6e','#5a7ab0','#e8b090'], ground:'#0a1526', stars:.5,
+    particles:{n:34,color:'rgba(190,255,210,.6)',vy:-10,size:1.8,drift:20}, extra:'aurora'},
+  moon:{sky:['#020204','#050510','#0a0a1a','#101024'], ground:'#3a3a46', stars:1,
+    particles:{n:0}, extra:'earthrise'},
+  mars:{sky:['#1a0e12','#4a1e22','#9a4638','#e08a62'], ground:'#2a1015', stars:.6,
+    particles:{n:50,color:'rgba(230,160,120,.35)',vy:0,size:1.4,drift:34}, extra:'twinmoons'},
+  jupiter:{sky:['#2a1a10','#6a3e22','#b07038','#e8b070'], ground:null, stars:.25,
+    particles:{n:20,color:'rgba(255,230,190,.3)',vy:-3,size:2.4,drift:10}, extra:'cloudsea'},
+  saturn:{sky:['#0a0e1e','#1e2440','#4a4468','#c0a070'], ground:'#12101e', stars:.8,
+    particles:{n:30,color:'rgba(240,225,190,.5)',vy:-6,size:1.5,drift:8}, extra:'ringarc'},
+};
+
+function startLanding(id){
+  const def = PLANETS.find(p=>p.id===id);
+  $('#land-name .jp').textContent = nameMain(def);
+  $('#land-name .en').textContent = nameSub(def);
+  $('#land-caption .cap').innerHTML = captionOf(def).replace(/\n/g,'<br>');
+  renderWhisper(def);
+  const s = SCENES[id];
+  landingScene = {
+    id, s, t:0,
+    stars:Array.from({length:120},()=>({x:Math.random(),y:Math.random()*.7,r:Math.random()*1.4+.3,tw:Math.random()*7})),
+    parts:Array.from({length:s.particles.n||0},()=>({x:Math.random(),y:Math.random(),p:Math.random()*7})),
+  };
+  resize();
+  landingLoop();
+}
+function stopLanding(){
+  if(landingRAF) cancelAnimationFrame(landingRAF);
+  landingRAF = null; landingScene = null;
+}
+function landingLoop(){
+  if(!landingScene) return;
+  landingRAF = requestAnimationFrame(landingLoop);
+  const w = landingCanvas.width, h = landingCanvas.height;
+  const sc = landingScene; sc.t += 0.016*SPEED;
+  const {s} = sc; const t = sc.t;
+
+  // sky
+  const grd = lc.createLinearGradient(0,0,0,h);
+  s.sky.forEach((c,i)=>grd.addColorStop(i/(s.sky.length-1), c));
+  lc.fillStyle = grd; lc.fillRect(0,0,w,h);
+
+  // stars
+  if(s.stars){
+    sc.stars.forEach(st=>{
+      const a = s.stars * (0.4 + 0.6*Math.abs(Math.sin(t*.8+st.tw)));
+      lc.fillStyle = `rgba(230,235,255,${a})`;
+      lc.beginPath(); lc.arc(st.x*w, st.y*h, st.r*(w/900), 0, 7); lc.fill();
+    });
+  }
+
+  // planet-specific sky feature
+  drawExtra(sc, w, h, t);
+
+  // ground
+  if(s.ground){
+    lc.fillStyle = s.ground;
+    lc.beginPath();
+    lc.moveTo(0,h);
+    lc.lineTo(0, h*.78);
+    for(let x=0;x<=w;x+=w/24){
+      const y = h*.78 + Math.sin(x*.004 + (sc.id==='moon'?2:0))*h*.02 + Math.sin(x*.001)*h*.03;
+      lc.lineTo(x,y);
+    }
+    lc.lineTo(w,h); lc.closePath(); lc.fill();
+    // horizon glow
+    const hg = lc.createLinearGradient(0,h*.7,0,h*.85);
+    hg.addColorStop(0,'rgba(255,255,255,0)');
+    hg.addColorStop(1,'rgba(255,240,220,.06)');
+    lc.fillStyle = hg; lc.fillRect(0,h*.7,w,h*.15);
+  }
+
+  // particles
+  const pc = s.particles;
+  if(pc && pc.n){
+    sc.parts.forEach(p=>{
+      p.y += (pc.vy/ h)*1.2;
+      p.x += Math.sin(t*.5+p.p)*pc.drift/w*.4;
+      if(p.y<-.05)p.y=1.05; if(p.y>1.05)p.y=-.05;
+      if(p.x<-.05)p.x=1.05; if(p.x>1.05)p.x=-.05;
+      const a = .4+.6*Math.abs(Math.sin(t+p.p));
+      lc.fillStyle = pc.color.replace(/[\d.]+\)$/, (parseFloat(pc.color.match(/([\d.]+)\)$/)[1])*a)+')');
+      lc.beginPath(); lc.arc(p.x*w, p.y*h, pc.size*(w/900), 0, 7); lc.fill();
+    });
+  }
+}
+
+function drawExtra(sc, w, h, t){
+  const id = sc.id;
+  if(id==='moon'){
+    // earthrise
+    const ex=w*.68, ey=h*.34, r=w*.075;
+    const g1 = lc.createRadialGradient(ex-r*.3,ey-r*.3,r*.1, ex,ey,r);
+    g1.addColorStop(0,'#bcd8f5'); g1.addColorStop(.5,'#5a95d8'); g1.addColorStop(1,'#1e4a8a');
+    lc.fillStyle = g1; lc.beginPath(); lc.arc(ex,ey,r,0,7); lc.fill();
+    lc.globalAlpha=.5; lc.fillStyle='#ffffff';
+    for(let i=0;i<5;i++){
+      lc.beginPath();
+      lc.ellipse(ex + Math.sin(i*2.2)*r*.5, ey + Math.cos(i*1.7)*r*.5, r*.32, r*.09, i, 0, 7);
+      lc.fill();
+    }
+    lc.globalAlpha=1;
+    const glow = lc.createRadialGradient(ex,ey,r,ex,ey,r*2.4);
+    glow.addColorStop(0,'rgba(140,180,240,.25)'); glow.addColorStop(1,'rgba(0,0,0,0)');
+    lc.fillStyle=glow; lc.beginPath(); lc.arc(ex,ey,r*2.4,0,7); lc.fill();
+  }
+  if(id==='saturn'){
+    // great ring arc across the sky
+    lc.save();
+    lc.translate(w*.5, h*1.25);
+    lc.rotate(-.18);
+    for(let i=0;i<3;i++){
+      lc.beginPath();
+      lc.arc(0,0, h*(.95+i*.06), Math.PI*1.08, Math.PI*1.92);
+      lc.strokeStyle = `rgba(235,220,180,${.22-.05*i})`;
+      lc.lineWidth = h*.028*(1-i*.2);
+      lc.stroke();
+    }
+    lc.restore();
+  }
+  if(id==='mars'){
+    const m1x=w*.3+Math.sin(t*.05)*w*.02, m2x=w*.72;
+    lc.fillStyle='rgba(240,210,190,.8)';
+    lc.beginPath(); lc.arc(m1x, h*.22, w*.012,0,7); lc.fill();
+    lc.fillStyle='rgba(220,180,160,.6)';
+    lc.beginPath(); lc.arc(m2x, h*.3, w*.008,0,7); lc.fill();
+  }
+  if(id==='earth'){
+    // aurora ribbons
+    for(let rbn=0;rbn<3;rbn++){
+      lc.beginPath();
+      for(let x=0;x<=w;x+=w/60){
+        const y = h*(.18+rbn*.07) + Math.sin(x*.004 + t*.6 + rbn*2)*h*.05
+                + Math.sin(x*.001 + t*.3)*h*.03;
+        x===0 ? lc.moveTo(x,y) : lc.lineTo(x,y);
+      }
+      const a = .10 - rbn*.02 + Math.sin(t+rbn)*.02;
+      lc.strokeStyle = rbn===1 ? `rgba(140,255,190,${a})` : `rgba(120,200,255,${a})`;
+      lc.lineWidth = h*.05;
+      lc.stroke();
+    }
+  }
+  if(id==='jupiter'){
+    // endless cloud sea
+    for(let band=0;band<5;band++){
+      lc.beginPath();
+      const base = h*(.55+band*.1);
+      lc.moveTo(0,h);
+      for(let x=0;x<=w;x+=w/40){
+        const y = base + Math.sin(x*.003 + t*.25 + band*1.8)*h*.03
+                       + Math.sin(x*.007 - t*.15 + band)*h*.015;
+        lc.lineTo(x,y);
+      }
+      lc.lineTo(w,h); lc.closePath();
+      lc.fillStyle = `rgba(${90+band*24},${52+band*20},${30+band*14},${.55})`;
+      lc.fill();
+    }
+    // the great pale swirl
+    lc.save();
+    lc.translate(w*.72, h*.62); lc.rotate(t*.03);
+    for(let i=0;i<4;i++){
+      lc.beginPath();
+      lc.ellipse(0,0, w*.06*(1-i*.18), w*.035*(1-i*.18), i*.6, 0, 7);
+      lc.strokeStyle = `rgba(255,235,215,${.12+i*.04})`;
+      lc.lineWidth = w*.004;
+      lc.stroke();
+    }
+    lc.restore();
+  }
+  if(id==='venus'){
+    for(let i=0;i<4;i++){
+      const y = h*(.25+i*.15) + Math.sin(t*.2+i)*h*.02;
+      const g = lc.createLinearGradient(0,y-h*.06,0,y+h*.06);
+      g.addColorStop(0,'rgba(255,230,180,0)');
+      g.addColorStop(.5,`rgba(255,225,170,${.08+Math.sin(t*.3+i*2)*.03})`);
+      g.addColorStop(1,'rgba(255,230,180,0)');
+      lc.fillStyle=g; lc.fillRect(0,y-h*.06,w,h*.12);
+    }
+  }
+  if(id==='mercury'){
+    // enormous quiet sun at the horizon
+    const sx=w*.5, sy=h*.8, r=w*.16;
+    const g = lc.createRadialGradient(sx,sy,r*.2, sx,sy,r*2.2);
+    g.addColorStop(0,'rgba(255,235,190,.9)');
+    g.addColorStop(.25,'rgba(255,200,130,.5)');
+    g.addColorStop(1,'rgba(255,160,90,0)');
+    lc.fillStyle=g; lc.beginPath(); lc.arc(sx,sy,r*2.2,0,7); lc.fill();
+    lc.fillStyle='rgba(255,244,214,.95)';
+    lc.beginPath(); lc.arc(sx,sy,r*.55,0,7); lc.fill();
+  }
+}
+
+/* =========================================================
+   AMBIENT SOUND — generative, weightless, no files
+   ========================================================= */
+const Ambient = (()=>{
+  let ctx=null, master=null, wet=null, current=null, muted=false;
+
+  const PROFILES = {
+    space:  {root:55.0,  ratios:[1,1.5,2,3],   filter:420,  wind:0.010, bells:[440,523,659,784,880], bellEvery:9,  bright:.5},
+    mercury:{root:65.4,  ratios:[1,1.2,2,2.4], filter:520,  wind:0.015, bells:[523,622,784,932],     bellEvery:8,  bright:.6},
+    venus:  {root:87.3,  ratios:[1,1.25,1.5,2],filter:640,  wind:0.020, bells:[698,880,1046],        bellEvery:7,  bright:.7},
+    earth:  {root:98.0,  ratios:[1,1.5,2,2.5], filter:700,  wind:0.035, bells:[784,880,1174,1318],   bellEvery:6,  bright:.8},
+    moon:   {root:110.0, ratios:[1,2,3],       filter:380,  wind:0.006, bells:[880,1046,1318,1760],  bellEvery:5,  bright:.4},
+    mars:   {root:61.7,  ratios:[1,1.19,1.78], filter:460,  wind:0.060, bells:[494,587,740],         bellEvery:10, bright:.45},
+    jupiter:{root:49.0,  ratios:[1,1.5,2,4],   filter:340,  wind:0.030, bells:[392,587,784],         bellEvery:11, bright:.35},
+    saturn: {root:82.4,  ratios:[1,1.5,2.5,4], filter:900,  wind:0.012, bells:[659,988,1318,1976],   bellEvery:6,  bright:.9},
+  };
+
+  function init(){
+    if(ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = muted ? 0 : 0.55;
+    master.connect(ctx.destination);
+    // homemade reverb: 3s exhale of noise
+    const len = ctx.sampleRate*3;
+    const imp = ctx.createBuffer(2, len, ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){
+      const d = imp.getChannelData(ch);
+      for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6);
+    }
+    const conv = ctx.createConvolver(); conv.buffer = imp;
+    wet = ctx.createGain(); wet.gain.value = .6;
+    conv.connect(wet); wet.connect(master);
+    Ambient._conv = conv;
+  }
+
+  function makeVoice(profile){
+    const bus = ctx.createGain(); bus.gain.value = 0;
+    bus.connect(master); bus.connect(Ambient._conv);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type='lowpass'; filter.frequency.value = profile.filter; filter.Q.value = .6;
+    filter.connect(bus);
+
+    // slow breathing on the filter
+    const lfo = ctx.createOscillator(); lfo.frequency.value = .05;
+    const lfoG = ctx.createGain(); lfoG.gain.value = profile.filter*.35;
+    lfo.connect(lfoG); lfoG.connect(filter.frequency); lfo.start();
+
+    const oscs=[lfo];
+    profile.ratios.forEach((r,i)=>{
+      [-1,1].forEach(sign=>{
+        const o = ctx.createOscillator();
+        o.type = i===0 ? 'sine' : (Math.random()>.5?'sine':'triangle');
+        o.frequency.value = profile.root*r * (1 + sign*0.0022);
+        const g = ctx.createGain();
+        g.gain.value = (i===0? .16 : .07/(i)) ;
+        o.connect(g); g.connect(filter);
+        o.start(); oscs.push(o);
+      });
+    });
+
+    // wind
+    const nLen = ctx.sampleRate*2;
+    const nBuf = ctx.createBuffer(1,nLen,ctx.sampleRate);
+    const nd = nBuf.getChannelData(0);
+    for(let i=0;i<nLen;i++) nd[i]=Math.random()*2-1;
+    const noise = ctx.createBufferSource(); noise.buffer=nBuf; noise.loop=true;
+    const nf = ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=300+profile.root*2; nf.Q.value=.4;
+    const ng = ctx.createGain(); ng.gain.value = profile.wind;
+    noise.connect(nf); nf.connect(ng); ng.connect(bus);
+    noise.start();
+
+    // occasional bells — small lights in the dark
+    let bellTimer = null;
+    function scheduleBell(){
+      const wait = (profile.bellEvery*(0.6+Math.random()*0.9))*1000;
+      bellTimer = setTimeout(()=>{
+        if(!ctx) return;
+        const f = profile.bells[Math.floor(Math.random()*profile.bells.length)];
+        const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
+        const o2 = ctx.createOscillator(); o2.type='sine'; o2.frequency.value=f*2.01;
+        const g = ctx.createGain();
+        const now = ctx.currentTime;
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(.05*profile.bright, now+.03);
+        g.gain.exponentialRampToValueAtTime(.0001, now+4.5);
+        o.connect(g); const g2=ctx.createGain(); g2.gain.value=.25; o2.connect(g2); g2.connect(g);
+        g.connect(bus); g.connect(Ambient._conv);
+        o.start(now); o2.start(now); o.stop(now+5); o2.stop(now+5);
+        scheduleBell();
+      }, wait);
+    }
+    scheduleBell();
+
+    return {
+      bus, oscs, noise,
+      stopBells(){ clearTimeout(bellTimer); },
+      fadeIn(t=3){ bus.gain.cancelScheduledValues(ctx.currentTime);
+        bus.gain.setValueAtTime(bus.gain.value, ctx.currentTime);
+        bus.gain.linearRampToValueAtTime(1, ctx.currentTime+t); },
+      fadeOutAndKill(t=2.5){
+        this.stopBells();
+        bus.gain.cancelScheduledValues(ctx.currentTime);
+        bus.gain.setValueAtTime(bus.gain.value, ctx.currentTime);
+        bus.gain.linearRampToValueAtTime(0, ctx.currentTime+t);
+        setTimeout(()=>{ oscs.forEach(o=>{try{o.stop()}catch(e){}}); try{noise.stop()}catch(e){}; bus.disconnect(); }, t*1000+100);
+      }
+    };
+  }
+
+  return {
+    start(){
+      init();
+      if(ctx.state==='suspended') ctx.resume();
+      if(!current) this.play('space');
+    },
+    play(id){
+      if(!ctx) return;
+      const prof = PROFILES[id] || PROFILES.space;
+      if(current) current.fadeOutAndKill(3);
+      current = makeVoice(prof);
+      current.fadeIn(3.5);
+    },
+    toggleMute(){
+      muted = !muted;
+      if(master){
+        master.gain.cancelScheduledValues(ctx.currentTime);
+        master.gain.linearRampToValueAtTime(muted?0:.55, ctx.currentTime+.6);
+      }
+      return muted;
+    }
+  };
+})();
+
+function ensureAudio(){
+  if(firstGesture) return;
+  firstGesture = true;
+  try{ Ambient.start(); }catch(e){}
+}
+document.getElementById('btn-sound').addEventListener('click', e=>{
+  ensureAudio();
+  const m = Ambient.toggleMute();
+  e.currentTarget.classList.toggle('muted', m);
+});
+
+/* =========================================================
+   QUIET PRESENCE — residents, footprints, tonight, watching
+   ========================================================= */
+/* storage wrapper: shared keys are visible to every visitor of this page */
+const Store = {
+  async get(k, shared=false){
+    try{ const r = await window.storage.get(k, shared); return r ? JSON.parse(r.value) : null; }
+    catch(e){ return null; }
+  },
+  async set(k, v, shared=false){
+    try{ await window.storage.set(k, JSON.stringify(v), shared); return true; }
+    catch(e){ return false; }
+  }
+};
+
+/* --- ① Now watching (ambient simulation — real presence needs a backend) --- */
+(function watching(){
+  const el = document.getElementById('watch-n');
+  const day = Math.floor(Date.now()/86400000);
+  let n = 9000 + ((day*2654435761)>>>0) % 6000;
+  let t0 = Date.now();
+  function tick(){
+    const h = new Date().getHours();
+    const nightBoost = (h>=20 || h<2) ? 1.15 : (h>=2 && h<7 ? 0.8 : 1);
+    const wave = Math.sin((Date.now()-t0)/240000) * 220;
+    n += Math.round((Math.random()-0.48)*30);
+    const shown = Math.max(800, Math.round((n + wave) * nightBoost));
+    el.textContent = shown.toLocaleString('en-US');
+    setTimeout(tick, 3500 + Math.random()*4000);
+  }
+  tick();
+})();
+
+/* --- ② Tonight — one sky event per day, tap to travel there --- */
+const EVENTS = [
+  {p:'saturn',  en:'Saturn Aurora',      jp:'土星のオーロラ'},
+  {p:'moon',    en:'Earthrise',          jp:'地球の出'},
+  {p:'mars',    en:'Night of Twin Moons',jp:'ふたつの月の夜'},
+  {p:'jupiter', en:'The Great Swirl',    jp:'大渦の夜'},
+  {p:'venus',   en:'Golden Haze',        jp:'黄金の霞'},
+  {p:'earth',   en:'Blue Hour',          jp:'ブルーアワー'},
+  {p:'mercury', en:'Silent Sunrise',     jp:'静寂の日の出'},
+];
+const tonightEv = EVENTS[Math.floor(Date.now()/86400000) % EVENTS.length];
+document.getElementById('tonight-name').textContent = tonightEv.en;
+document.getElementById('tonight-jp').textContent = tonightEv.jp;
+document.getElementById('tonight').addEventListener('click', ()=>{
+  if(mode!=='space') return;
+  ensureAudio();
+  flyTo(tonightEv.p);
+});
+
+/* --- ③ Resident — a real, shared number. One per traveler, forever. --- */
+const btnResident = document.getElementById('btn-resident');
+const ceremony = document.getElementById('ceremony');
+const resNoEl = document.getElementById('res-no');
+function fmtNo(n){ return String(n).padStart(6,'0'); }
+
+(async function initResident(){
+  const me = await Store.get('ph-me');
+  if(me && me.no){
+    btnResident.classList.add('gone');
+    resNoEl.textContent = 'Resident No. ' + fmtNo(me.no);
+  }
+})();
+
+btnResident.addEventListener('click', async ()=>{
+  ensureAudio();
+  btnResident.disabled = true;
+  let me = await Store.get('ph-me');
+  if(!me || !me.no){
+    const reg = (await Store.get('ph-residents', true)) || {count:0};
+    reg.count += 1;
+    const saved = await Store.set('ph-residents', reg, true);
+    me = {no: saved ? reg.count : 1, since: Date.now()};
+    await Store.set('ph-me', me);
+  }
+  ceremony.querySelector('.c-no').textContent = fmtNo(me.no);
+  ceremony.classList.add('on');
+  btnResident.classList.add('gone');
+  resNoEl.textContent = 'Resident No. ' + fmtNo(me.no);
+});
+ceremony.addEventListener('click', ()=> ceremony.classList.remove('on'));
+
+/* --- ④ Footprints — shared marks of everyone who ever landed here --- */
+async function stampFootprints(planetId){
+  const paws = document.getElementById('paws');
+  paws.innerHTML = '';
+  const fp = (await Store.get('ph-footprints', true)) || {};
+  fp[planetId] = (fp[planetId]||0) + 1;
+  Store.set('ph-footprints', fp, true);
+  const shown = Math.min(fp[planetId], 22);
+  for(let i=0;i<shown;i++){
+    const s = document.createElement('span');
+    s.textContent = '🐾';
+    s.style.opacity = 0;
+    paws.appendChild(s);
+    setTimeout(()=>s.classList.add('in'), 600 + i*260);
+  }
+}
+
+/* --- 旅モード — leave it open, and the universe wanders for you --- */
+let lastAct = performance.now();
+let autoTour = false;
+let tourTimer = null;
+const IDLE_MS = 90000, STAY_MS = 55000;
+document.addEventListener('pointerdown', ()=>{
+  lastAct = performance.now();
+  if(autoTour){ autoTour = false; clearTimeout(tourTimer); }
+}, true);
+setInterval(()=>{
+  if(mode==='space' && !autoTour && firstGesture &&
+     performance.now()-lastAct > IDLE_MS && !ceremony.classList.contains('on')){
+    autoTour = true;
+    const wanderable = PLANETS.filter(p=>p.id!==targetPlanet);
+    flyTo(wanderable[Math.floor(Math.random()*wanderable.length)].id);
+  }
+}, 4000);
+
+/* =========================================================
+   LANGUAGE — one quiet switch between two skies
+   English is the default sky. STILLAR is the only shared word.
+   ========================================================= */
+let lang = 'en';
+const I18N = {
+  jp:{
+    title:'あなたはどこの星の住人ですか？', sub:'Where do you belong?',
+    hint:'そっと、惑星にふれて',
+    ret:'宇 宙 へ 帰 る', resident:'住 人 に な る',
+    chint:'ふれると 宇宙へ もどります',
+    wl:'今日のささやき',
+    about:[
+      'これは ゲームではありません。','競争も、通知も、ありません。','',
+      '夜のあいだ ずっと開いている','ちいさな宇宙です。',
+      '世界のどこかで だれかが','ただ 空を見あげられるように。','',
+      'ここで 成しとげることは なにもなく','見逃すものも ありません。','',
+      '星は あなたを 待っています。'
+    ],
+  },
+  en:{
+    title:'Where do you belong?', sub:'あなたはどこの星の住人ですか？',
+    hint:'touch a planet',
+    ret:'return to space', resident:'become a resident',
+    chint:'touch to return to the sky',
+    wl:"Today's Whisper",
+    about:[
+      'This is not a game.','Not a feed. Not a race.','',
+      'It is a small universe','left open through the night —',
+      'so that somewhere,','someone can simply look up.','',
+      'There is nothing to achieve here.','Nothing to miss.','',
+      'The stars will wait for you.'
+    ],
+  }
+};
+const CAP_EN = {
+  mercury:'The silent world closest to the sun.\nHere, only light and shadow count the hours.',
+  venus:'A world wrapped in golden haze,\nwhere the dusk goes on forever.',
+  earth:'Blue, soft, and familiar.\nWelcome home.',
+  moon:'By the Sea of Tranquility,\nwatch the Earth rise.',
+  mars:'Only the wind walks the rose-colored sand.\nTwo moons drift across the sky.',
+  jupiter:'There is no ground in this sea of clouds.\nEven the storms swirl like music here.',
+  saturn:'Rings of light arc across the whole sky —\nthe quietest seat in the universe.',
+};
+function nameMain(def){ return lang==='en' ? def.en : def.jp; }
+function nameSub(def){ return lang==='en' ? def.jp.replace(/ /g,'') : def.en; }
+function captionOf(def){ return lang==='en' ? CAP_EN[def.id] : def.caption; }
+
+/* =========================================================
+   TODAY'S WHISPER — one small poem per planet, per day
+   keywords: stillness · wonder · silence · stars · home ·
+             journey · dream · aurora · whisper · night · calm · hope
+   ========================================================= */
+const WHISPERS = {
+  en:{
+    open:['Tonight,','Somewhere,','Quietly,','While you were away,','In the stillness,','Beneath the same sky,'],
+    close:['Stay a while.','You are home.','No need to hurry.','The stars will wait.','Breathe.','Welcome back.'],
+    img:{
+      mercury:['the shadows grow long and patient','light rests on the bare stone','the sun takes a hundred days to set'],
+      venus:['the golden haze folds like silk','dusk leans against dusk','the clouds keep their warm secret'],
+      earth:['an aurora breathes over the sea','somewhere, a window is still lit','the fireflies remember you'],
+      moon:['the Earth rises without a sound','your footprints are still here','the Sea of Tranquility keeps its promise'],
+      mars:['two moons cross paths, and part','the wind writes something in the sand','a rose-colored dusk settles in'],
+      jupiter:['the great storm hums in its sleep','clouds fold into slow music','far thunder, soft as a heartbeat'],
+      saturn:['the rings tilt toward morning','light walks the long ring road','a billion small stones, all asleep'],
+    }
+  },
+  jp:{
+    open:['今夜、','どこかで、','しずかに、','あなたのいないあいだに、','星のしたで、','おなじ空のしたで、'],
+    close:['すこしだけ、ここにいて。','おかえりなさい。','いそがなくて いいのです。','星は 待っていてくれます。','ゆっくり、息をして。','また、会えましたね。'],
+    img:{
+      mercury:['影が ながく ながく のびてゆく','はだかの岩に ひかりが やすむ','太陽は 百日かけて 沈んでゆく'],
+      venus:['金色のもやが 絹のように たたまれる','夕暮れが 夕暮れに よりかかる','雲は あたたかい秘密を だいたまま'],
+      earth:['海のうえで オーロラが 息をする','どこかの窓に まだ あかりがともる','蛍たちは あなたを おぼえている'],
+      moon:['音もなく 地球が のぼる','あなたの足あとは まだ ここにある','静けさの海は 今日も 静かなまま'],
+      mars:['ふたつの月が すれちがってゆく','風が 砂に なにかを書いている','薔薇色の夕暮れが 降りつもる'],
+      jupiter:['大きな嵐が ねむりのなかで うたう','雲が ゆっくり 音楽にたたまれる','とおくの雷は 心臓の音に似ている'],
+      saturn:['環が 朝のほうへ かたむいてゆく','ひかりが 環の道を あるいてゆく','十億の小石が みんな ねむっている'],
+    }
+  }
+};
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function todaysWhisper(planetId, l){
+  const day = Math.floor(Date.now()/86400000);
+  const idx = PLANETS.findIndex(p=>p.id===planetId);
+  const rnd = mulberry32(day*97 + idx*13);
+  const W = WHISPERS[l];
+  const img = W.img[planetId][Math.floor(rnd()*W.img[planetId].length)];
+  const close = W.close[Math.floor(rnd()*W.close.length)];
+  if(rnd() > 0.45){
+    const open = W.open[Math.floor(rnd()*W.open.length)];
+    return open + (l==='en' ? ' ' : '') + img + (l==='en'?'.':'。') + '<br>' + close;
+  }
+  return img.charAt(0).toUpperCase() + img.slice(1) + (l==='en'?'.':'。') + '<br>' + close;
+}
+function renderWhisper(def){
+  $('#land-caption .wl').textContent = I18N[lang].wl;
+  $('#land-caption .wt').innerHTML = todaysWhisper(def.id, lang);
+}
+
+/* ---------------- setLang ---------------- */
+const btnLang = document.getElementById('btn-lang');
+function setLang(l){
+  lang = l;
+  document.body.classList.toggle('lang-en', l==='en');
+  const t = I18N[l];
+  titleEl.querySelector('h1').textContent = t.title;
+  titleEl.querySelector('.en').textContent = t.sub;
+  hintEl.textContent = t.hint;
+  document.getElementById('btn-return').textContent = t.ret;
+  btnResident.textContent = t.resident;
+  ceremony.querySelector('.c-hint').textContent = t.chint;
+  document.querySelector('#about .a-body').innerHTML = t.about.map(x=>x||'&nbsp;').join('<br>');
+  btnLang.querySelectorAll('span').forEach(s=>s.classList.toggle('act', s.dataset.l===l));
+  /* refresh whatever is on stage */
+  if(targetPlanet && mode==='landed'){
+    const def = PLANETS.find(p=>p.id===targetPlanet);
+    $('#land-name .jp').textContent = nameMain(def);
+    $('#land-name .en').textContent = nameSub(def);
+    $('#land-caption .cap').innerHTML = captionOf(def).replace(/\n/g,'<br>');
+    renderWhisper(def);
+  }
+  Store.set('ph-lang', l);
+}
+btnLang.addEventListener('click', ()=> setLang(lang==='jp' ? 'en' : 'jp'));
+
+/* ---------------- About — the world, not the company ---------------- */
+const aboutEl = document.getElementById('about');
+document.getElementById('wordmark').addEventListener('click', ()=>{
+  if(mode!=='space') return;
+  aboutEl.classList.add('on');
+});
+aboutEl.addEventListener('click', ()=> aboutEl.classList.remove('on'));
+
+/* =========================================================
+   SEASONAL SKY — design only (V1.x). Not active in V1.0.
+   The universe should *feel* the season, never announce it.
+   Each entry: date-window test + one gentle overlay effect.
+   ---------------------------------------------------------
+   const SEASONS = [
+     {id:'sakura',  when:(m,d)=> m===3||(m===4&&d<20),        fx:'petals'  }, // 春 — 桜の花びらが宇宙をゆっくり流れる
+     {id:'perseid', when:(m,d)=> m===8&&d>=11&&d<=14,         fx:'meteors' }, // 流星群 — 流れ星が少しだけ増える夜
+     {id:'harvest', when:(m,d)=> isHarvestMoonWeek(m,d),      fx:'brightmoon'}, // 中秋 — 月の明度+15%、ハロを追加
+     {id:'winter',  when:(m,d)=> m===12||m===1,               fx:'crisp'   }, // 冬 — 星の数+10%、瞬きを鋭く
+     {id:'newyear', when:(m,d)=> (m===12&&d===31)||(m===1&&d===1), fx:'sparks'}, // 新年 — 全惑星に小さな光が舞う
+   ];
+   実装方針: fx はすべて既存の Points / particle 系の
+   パラメータ調整＋1レイヤー追加で済む軽量演出とし、
+   UI表示・通知・文言は一切出さない。
+   ========================================================= */
+
+/* ---------------- go ---------------- */
+setLang('en');
+(async function initLang(){
+  const saved = await Store.get('ph-lang');
+  if(saved==='jp') setLang('jp');
+})();
+resize();
+animate();
+</script>
+</body>
+</html>
